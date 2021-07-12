@@ -84,6 +84,43 @@ public:
 		assert(buf == a + getSerializationSize());
 	}
 
+    const char* getPluginType() const NOEXCEPT override {
+        return "FlattenConcatRT_TKDNN";
+    }
+
+    const char* getPluginVersion() const NOEXCEPT override{
+        return "1";
+    }
+    void destroy() NOEXCEPT override{
+        delete this;
+    }
+    bool supportsFormat(DataType type,PluginFormat format) const NOEXCEPT override {
+        return true;
+    }
+    const char* getPluginNamespace() const NOEXCEPT override{
+        return mPluginNamespace;
+    }
+
+    void setPluginNamespace(const char* pluginNamespace) NOEXCEPT override{
+        mPluginNamespace = pluginNamespace;
+    }
+
+    void configureWithFormat(Dims const *inputDims,int32_t nbInputs,Dims const *outputDims,int32_t nbOutputs,DataType type,PluginFormat format,int32_t maxBatchSize) NOEXCEPT override{
+        assert(nbOutputs == 1 && nbInputs ==1);
+        rows = inputDims[0].d[0];
+        cols = inputDims[0].d[1] * inputDims[0].d[2];
+        c = inputDims[0].d[0] * inputDims[0].d[1] * inputDims[0].d[2];
+        h = 1;
+        w = 1;
+	}
+
+	IPluginV2* clone() const NOEXCEPT override{
+	    FlattenConcatRT *p = new FlattenConcatRT();
+	    p->setPluginNamespace(mPluginNamespace);
+	    return p;
+	}
+
+	const char* mPluginNamespace;
 	int c, h, w;
 	int rows, cols;
 	cublasStatus_t stat; 

@@ -195,6 +195,36 @@ public:
 		assert(buf == a + getSerializationSize());
 	}
 
+    const char* getPluginType() const NOEXCEPT override {
+        return "DeformableConvRT_TKDNN";
+    }
+
+    const char* getPluginVersion() const NOEXCEPT override{
+        return "1";
+    }
+    void destroy() NOEXCEPT override{
+        delete this;
+    }
+    bool supportsFormat(DataType type,PluginFormat format) const NOEXCEPT override {
+        return true;
+    }
+    const char* getPluginNamespace() const NOEXCEPT override{
+        return mPluginNamespace;
+    }
+
+    void setPluginNamespace(const char* pluginNamespace) NOEXCEPT override{
+        mPluginNamespace = pluginNamespace;
+    }
+
+    void configureWithFormat(Dims const *inputDims,int32_t nbInputs,Dims const *outputDims,int32_t nbOutputs,DataType type,PluginFormat format,int32_t maxBatchSize) NOEXCEPT override{}
+
+    IPluginV2* clone() const NOEXCEPT override{
+	    DeformableConvRT *p = new DeformableConvRT(*this);
+	    p->setPluginNamespace(mPluginNamespace);
+	    return p;
+	}
+
+    const char* mPluginNamespace;
 	cublasStatus_t stat; 
 	cublasHandle_t handle; 
 	int i_n, i_c, i_h, i_w;

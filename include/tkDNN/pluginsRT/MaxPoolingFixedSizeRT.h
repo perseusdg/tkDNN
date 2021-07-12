@@ -75,6 +75,40 @@ public:
 		assert(buf == a + getSerializationSize());
 	}
 
+	const char* getPluginType() const NOEXCEPT override {
+	    return "MaxPoolingRT_TKDNN";
+	}
+
+	const char* getPluginVersion() const NOEXCEPT override{
+        return "1";
+	}
+
+	void destroy() NOEXCEPT override{
+	    delete this;
+	}
+	bool supportsFormat(DataType type,PluginFormat format) const NOEXCEPT override {
+	    return true;
+	}
+	const char* getPluginNamespace() const NOEXCEPT override{
+	    return mPluginNamespace;
+	}
+
+	void setPluginNamespace(const char* pluginNamespace) NOEXCEPT override{
+	    mPluginNamespace = pluginNamespace;
+	}
+
+	void configureWithFormat(Dims const *inputDims,int32_t nbInputs,Dims const *outputDims,int32_t nbOutputs,DataType type,PluginFormat format,int32_t maxBatchSize) NOEXCEPT override{
+
+	}
+
+	IPluginV2* clone() const NOEXCEPT override{
+        MaxPoolFixedSizeRT *p = new MaxPoolFixedSizeRT(c,h,w,n,stride_H,stride_W,winSize,padding);
+        p->setPluginNamespace(mPluginNamespace);
+        return p;
+
+	}
+
+	const char* mPluginNamespace;
 	int n, c, h, w;
 	int stride_H, stride_W;
 	int winSize;

@@ -68,5 +68,38 @@ public:
 		assert(buf == a + getSerializationSize());
 	}
 
+    const char* getPluginType() const NOEXCEPT override {
+        return "ResizeLayerRT_TKDNN";
+    }
+
+    const char* getPluginVersion() const NOEXCEPT override{
+        return "1";
+    }
+    void destroy() NOEXCEPT override{
+        delete this;
+    }
+    bool supportsFormat(DataType type,PluginFormat format) const NOEXCEPT override {
+        return true;
+    }
+    const char* getPluginNamespace() const NOEXCEPT override{
+        return mPluginNamespace;
+    }
+
+    void setPluginNamespace(const char* pluginNamespace) NOEXCEPT override{
+        mPluginNamespace = pluginNamespace;
+    }
+    void configureWithFormat(Dims const *inputDims,int32_t nbInputs,Dims const *outputDims,int32_t nbOutputs,DataType type,PluginFormat format,int32_t maxBatchSize) NOEXCEPT override{
+        i_c = inputDims[0].d[0];
+        i_h = inputDims[0].d[1];
+        i_w = inputDims[0].d[2];
+    }
+
+    IPluginV2* clone() const NOEXCEPT override{
+	    ResizeLayerRT* p = new ResizeLayerRT(*this);
+	    p->setPluginNamespace(mPluginNamespace);
+	    return p;
+	}
+
+	const char* mPluginNamespace;
 	int i_c, i_h, i_w, o_c, o_h, o_w;
 };

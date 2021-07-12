@@ -60,5 +60,27 @@ public:
 		assert(buf == a + getSerializationSize());
 	}
 
+    const char* getPluginType() const NOEXCEPT override {
+        return "ActivationSignmoidRT_TKDNN";
+    }
+
+    const char* getPluginVersion() const NOEXCEPT override{
+        return "1";
+    }
+    void destroy() NOEXCEPT override{
+        delete this;
+    }
+    bool supportsFormat(DataType type,PluginFormat format) const NOEXCEPT override {
+        return true;
+    }
+    const char* getPluginNamespace() const NOEXCEPT override{
+        return mPluginNamespace;
+    }
+
+    void setPluginNamespace(const char* pluginNamespace) NOEXCEPT override{
+        mPluginNamespace = pluginNamespace;
+    }
+
+    const char* mPluginNamespace;
 	int size;
 };
