@@ -1,6 +1,6 @@
 #include<cassert>
 
-class FlattenConcatRT : public IPlugin {
+class FlattenConcatRT : public IPluginV2 {
 
 public:
 	FlattenConcatRT() {
@@ -15,35 +15,44 @@ public:
 
 	}
 
-	int getNbOutputs() const override {
+	int getNbOutputs() const NOEXCEPT override {
 		return 1;
 	}
 
-	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) override {
-		return DimsCHW{ inputs[0].d[0] * inputs[0].d[1] * inputs[0].d[2], 1, 1};
+	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) NOEXCEPT override {
+		return Dims3{ inputs[0].d[0] * inputs[0].d[1] * inputs[0].d[2], 1, 1};
 	}
 
-	void configure(const Dims* inputDims, int nbInputs, const Dims* outputDims, int nbOutputs, int maxBatchSize) override {
-		assert(nbOutputs == 1 && nbInputs ==1);
-		rows = inputDims[0].d[0];
-		cols = inputDims[0].d[1] * inputDims[0].d[2];
-		c = inputDims[0].d[0] * inputDims[0].d[1] * inputDims[0].d[2];
-		h = 1;
-		w = 1;
-	}
+	
 
-	int initialize() override {
+	int initialize() NOEXCEPT override {
 		return 0;
 	}
 
-	virtual void terminate() override {
+	virtual void terminate() NOEXCEPT override {
 		checkERROR(cublasDestroy(handle));
 	}
 
-	virtual size_t getWorkspaceSize(int maxBatchSize) const override {
+	virtual size_t getWorkspaceSize(int maxBatchSize) const NOEXCEPT override {
 		return 0;
 	}
 
+	#if NV_TENSORRT_MAJOR >= 8
+	virtual int32_t enqueue(int32_t batchSize, void const*const* inputs,void*const* outputs,void* workspace,cudaStream_t stream) NOEXCEPT override {
+		dnnType *srcData = (dnnType*)reinterpret_cast<const dnnType*>(inputs[0]);
+		dnnType *dstData = reinterpret_cast<dnnType*>(outputs[0]);
+		checkCuda( cudaMemcpyAsync(dstData, srcData, batchSize*rows*cols*sizeof(dnnType), cudaMemcpyDeviceToDevice, stream));
+
+		checkERROR( cublasSetStream(handle, stream) );	
+		for(int i=0; i<batchSize; i++) {
+			float const alpha(1.0);
+			float const beta(0.0);
+			int offset = i*rows*cols;
+			checkERROR( cublasSgeam( handle, CUBLAS_OP_T, CUBLAS_OP_N, rows, cols, &alpha, srcData + offset, cols, &beta, srcData + offset, rows, dstData + offset, rows ));
+		}
+		return 0;
+	}
+	#else
 	virtual int enqueue(int batchSize, const void*const * inputs, void** outputs, void* workspace, cudaStream_t stream) override {
 		dnnType *srcData = (dnnType*)reinterpret_cast<const dnnType*>(inputs[0]);
 		dnnType *dstData = reinterpret_cast<dnnType*>(outputs[0]);
@@ -58,13 +67,14 @@ public:
 		}
 		return 0;
 	}
+	#endif 
 
 
-	virtual size_t getSerializationSize() override {
+	virtual size_t getSerializationSize() const NOEXCEPT override {
 		return 5*sizeof(int);
 	}
 
-	virtual void serialize(void* buffer) override {
+	virtual void serialize(void* buffer) const NOEXCEPT override {
 		char *buf = reinterpret_cast<char*>(buffer),*a = buf;
 		tk::dnn::writeBUF(buf, c);
 		tk::dnn::writeBUF(buf, h);

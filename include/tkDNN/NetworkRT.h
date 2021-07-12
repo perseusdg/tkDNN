@@ -40,13 +40,15 @@ using namespace nvinfer1;
 #include "pluginsRT/ReshapeRT.h"
 #include "pluginsRT/MaxPoolingFixedSizeRT.h"
 
-class PluginFactory : IPluginFactory
+
+
+class PluginFactory : IPluginCreator
 {
 public:
     YoloRT *yolos[16];
     int n_yolos;
 
-	virtual IPlugin* createPlugin(const char* layerName, const void* serialData, size_t serialLength);
+	virtual IPluginV2* createPlugin(const char* layerName, const void* serialData, size_t serialLength) NOEXCEPT ;
 };
 
 

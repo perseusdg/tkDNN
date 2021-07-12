@@ -12,8 +12,8 @@ public:
 	{
         mBatchSize = batchSize;
         mMaxBatches = maxBatches;
-		mDims = nvinfer1::DimsNCHW{ dim.n, dim.c, dim.h, dim.w };
-		mImageSize = mDims.c()*mDims.h()*mDims.w();
+		mDims = nvinfer1::Dims4{ dim.n, dim.c, dim.h, dim.w };
+		mImageSize = mDims.d[1]*mDims.d[2]*mDims.d[3];
 		mBatch.resize(mBatchSize*mImageSize, 0);
 		mLabels.resize(mBatchSize, 0);
 		mFileBatch.resize(mDims.n()*mImageSize, 0);
@@ -37,8 +37,8 @@ public:
 
 		for (int csize = 1, batchPos = 0; batchPos < mBatchSize; batchPos += csize, mFileBatchPos += csize)
 		{
-			assert(mFileBatchPos > 0 && mFileBatchPos <= mDims.n());
-			if (mFileBatchPos == mDims.n() && !update())
+			assert(mFileBatchPos > 0 && mFileBatchPos <= mDims.d[0]);
+			if (mFileBatchPos == mDims.d[0] && !update())
 				return false;
 
 			// copy the smaller of: elements left to fulfill the request, or elements left in the file buffer.
@@ -52,9 +52,9 @@ public:
 
 	void skip(int skipCount)
 	{
-		if (mBatchSize >= mDims.n() && mBatchSize%mDims.n() == 0 && mFileBatchPos == mDims.n())
+		if (mBatchSize >= mDims.d[0] && mBatchSize%mDims.d[0] == 0 && mFileBatchPos == mDims.d[0])
 		{
-			mFileCount += skipCount * mBatchSize / mDims.n();
+			mFileCount += skipCount * mBatchSize / mDims.d[0];
             std::cout<<mFileCount<<"\n";
 			return;
 		}
@@ -99,7 +99,7 @@ private:
 	int mFileCount{ 0 }, mFileBatchPos{ 0 };
 	int mImageSize{ 0 };
 
-	nvinfer1::DimsNCHW mDims;
+	nvinfer1::Dims4 mDims;
 	std::vector<float> mBatch;
 	std::vector<float> mLabels;
 	std::vector<float> mFileBatch;
@@ -114,8 +114,8 @@ public:
 	Int8EntropyCalibrator(BatchStream& stream, int firstBatch, bool readCache = true)
 		: mStream(stream), mReadCache(readCache)
 	{
-		DimsNCHW dims = mStream.getDims();
-		mInputCount = mStream.getBatchSize() * dims.c() * dims.h() * dims.w();
+		Dims4 dims = mStream.getDims();
+		mInputCount = mStream.getBatchSize() * dims.d[1] * dims.d[2] * dims.d[3];
 		checkCuda(cudaMalloc(&mDeviceInput, mInputCount * sizeof(float)));
 		mStream.reset(firstBatch);
 	}
@@ -125,9 +125,9 @@ public:
 		checkCuda(cudaFree(mDeviceInput));
 	}
 
-	int getBatchSize() const override { return mStream.getBatchSize(); }
+	int getBatchSize() const NOEXCEPT override { return mStream.getBatchSize(); }
 
-	bool getBatch(void* bindings[], const char* names[], int nbBindings) override
+	bool getBatch(void* bindings[], const char* names[], int nbBindings) NOEXCEPT override
 	{
         std::cout<<"CALIB request batch\n";
 		if (!mStream.next())
@@ -138,7 +138,7 @@ public:
 		return true;
 	}
 
-	const void* readCalibrationCache(size_t& length) override
+	const void* readCalibrationCache(size_t& length) NOEXCEPT override
 	{
 		mCalibrationCache.clear();
 		std::ifstream input("table.calib", std::ios::binary);
@@ -152,7 +152,7 @@ public:
 		return length ? &mCalibrationCache[0] : nullptr;
 	}
 
-	void writeCalibrationCache(const void* cache, size_t length) override
+	void writeCalibrationCache(const void* cache, size_t length) NOEXCEPT override
 	{
 		std::ofstream output("table.calib", std::ios::binary);
 		output.write(reinterpret_cast<const char*>(cache), length);

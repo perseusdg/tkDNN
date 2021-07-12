@@ -1,7 +1,7 @@
 #include<cassert>
 #include "../kernels.h"
 
-class RouteRT : public IPlugin {
+class RouteRT : public IPluginV2 {
 
 	/**
 		THIS IS NOT USED ANYMORE
@@ -17,40 +17,47 @@ public:
 
 	}
 
-	int getNbOutputs() const override {
+	int getNbOutputs() const NOEXCEPT override {
 		return 1;
 	}
 
-	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) override {
+	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) NOEXCEPT override {
 		int out_c = 0;
 		for(int i=0; i<nbInputDims; i++) out_c += inputs[i].d[0];
-		return DimsCHW{out_c/groups, inputs[0].d[1], inputs[0].d[2]};
+		return Dims3{out_c/groups, inputs[0].d[1], inputs[0].d[2]};
 	}
 
-	void configure(const Dims* inputDims, int nbInputs, const Dims* outputDims, int nbOutputs, int maxBatchSize) override {
-		in = nbInputs;
-		c = 0;
-		for(int i=0; i<nbInputs; i++) {
-			c_in[i] = inputDims[i].d[0]; 
-			c += inputDims[i].d[0];
+
+	int initialize() NOEXCEPT override {
+
+		return 0;
+	}
+
+	virtual void terminate() NOEXCEPT override {
+	}
+
+	virtual size_t getWorkspaceSize(int maxBatchSize) const NOEXCEPT override {
+		return 0;
+	}
+
+	#if NV_TENSORRT_MAJOR >= 8
+	virtual int32_t enqueue(int32_t batchSize,void const*const* inputs,void*const* outputs,void* workspace,cudaStream_t stream) NOEXCEPT override {
+		dnnType *dstData = reinterpret_cast<dnnType*>(outputs[0]);
+
+		for(int b=0; b<batchSize; b++) {
+			int offset = 0;
+			for(int i=0; i<in; i++) {
+				dnnType *input = (dnnType*)reinterpret_cast<const dnnType*>(inputs[i]);
+				int in_dim = c_in[i]*h*w;
+				int part_in_dim = in_dim / this->groups;
+				checkCuda( cudaMemcpyAsync(dstData + b*c*w*h + offset, input + b*c*w*h*groups + this->group_id*part_in_dim, part_in_dim*sizeof(dnnType), cudaMemcpyDeviceToDevice, stream) );
+				offset += part_in_dim;
+			}
 		}
-		h = inputDims[0].d[1];
-		w = inputDims[0].d[2];
-		c /= groups;
-	}
-
-	int initialize() override {
 
 		return 0;
 	}
-
-	virtual void terminate() override {
-	}
-
-	virtual size_t getWorkspaceSize(int maxBatchSize) const override {
-		return 0;
-	}
-
+	#else
 	virtual int enqueue(int batchSize, const void*const * inputs, void** outputs, void* workspace, cudaStream_t stream) override {
 		
 		dnnType *dstData = reinterpret_cast<dnnType*>(outputs[0]);
@@ -68,13 +75,14 @@ public:
 
 		return 0;
 	}
+	#endif 
 
 
-	virtual size_t getSerializationSize() override {
+	virtual size_t getSerializationSize() const NOEXCEPT override {
 		return (6+MAX_INPUTS)*sizeof(int);
 	}
 
-	virtual void serialize(void* buffer) override {
+	virtual void serialize(void* buffer) const NOEXCEPT override {
 		char *buf = reinterpret_cast<char*>(buffer),*a=buf;
 		tk::dnn::writeBUF(buf, groups);
 		tk::dnn::writeBUF(buf, group_id);

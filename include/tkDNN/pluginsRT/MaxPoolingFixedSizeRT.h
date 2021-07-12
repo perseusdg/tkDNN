@@ -1,7 +1,7 @@
 #include<cassert>
 #include "../kernels.h"
 
-class MaxPoolFixedSizeRT : public IPlugin {
+class MaxPoolFixedSizeRT : public IPluginV2 {
 
 public:
 	MaxPoolFixedSizeRT(int c, int h, int w, int n, int strideH, int strideW, int winSize, int padding) {
@@ -18,28 +18,35 @@ public:
 	~MaxPoolFixedSizeRT(){
 	}
 
-	int getNbOutputs() const override {
+	int getNbOutputs() const NOEXCEPT override {
 		return 1;
 	}
 
-	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) override {
-		return DimsCHW{this->c, this->h, this->w};
+	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) NOEXCEPT override {
+		return Dims3{this->c, this->h, this->w};
 	}
 
-	void configure(const Dims* inputDims, int nbInputs, const Dims* outputDims, int nbOutputs, int maxBatchSize) override {        
-	}
 
-	int initialize() override {
+
+	int initialize() NOEXCEPT override {
 		return 0;
 	}
 
-	virtual void terminate() override {
+	virtual void terminate() NOEXCEPT override {
 	}
 
-	virtual size_t getWorkspaceSize(int maxBatchSize) const override {
+	virtual size_t getWorkspaceSize(int maxBatchSize) const NOEXCEPT override {
 		return 0;
 	}
-
+	
+	#if NV_TENSORRT_MAJOR >= 8
+	virtual int32_t enqueue(int32_t batchSize,void const*const* inputs,void*const* outputs,void* workspace,cudaStream_t stream) NOEXCEPT override{
+		dnnType *srcData = (dnnType*)reinterpret_cast<const dnnType*>(inputs[0]);
+		dnnType *dstData = reinterpret_cast<dnnType*>(outputs[0]);
+		MaxPoolingForward(srcData, dstData, batchSize, this->c, this->h, this->w, this->stride_H, this->stride_W, this->winSize, this->padding, stream);
+		return 0;	
+	}
+	#else
 	virtual int enqueue(int batchSize, const void*const * inputs, void** outputs, void* workspace, cudaStream_t stream) override {
 
 		//std::cout<<this->n<<"  "<<this->c<<"  "<<this->h<<"  "<<this->w<<"  "<<this->stride_H<<"  "<<this->stride_W<<"  "<<this->winSize<<"  "<<this->padding<<std::endl;
@@ -48,13 +55,13 @@ public:
 		MaxPoolingForward(srcData, dstData, batchSize, this->c, this->h, this->w, this->stride_H, this->stride_W, this->winSize, this->padding, stream);
 		return 0;
 	}
+	#endif 
 
-
-	virtual size_t getSerializationSize() override {
+	virtual size_t getSerializationSize() const NOEXCEPT override {
 		return 8*sizeof(int);
 	}
 
-	virtual void serialize(void* buffer) override {
+	virtual void serialize(void* buffer) const NOEXCEPT override {
 		char *buf = reinterpret_cast<char*>(buffer),*a=buf;
 
 		tk::dnn::writeBUF(buf, this->c);

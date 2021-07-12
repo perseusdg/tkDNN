@@ -19,7 +19,13 @@
 #include <ios>
 #include <chrono>
 
+#include <NvInferVersion.h>
 
+#if NV_TENSORRT_MAJOR >=8 
+#define NOEXCEPT noexcept 
+#else
+#define NOEXCEPT
+#endif 
 #define dnnType float
 
 

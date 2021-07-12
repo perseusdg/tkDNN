@@ -1,7 +1,7 @@
 #include<cassert>
 #include "../kernels.h"
 
-class ActivationSigmoidRT : public IPlugin {
+class ActivationSigmoidRT : public IPluginV2 {
 
 public:
 	ActivationSigmoidRT() {
@@ -13,45 +13,48 @@ public:
 
 	}
 
-	int getNbOutputs() const override {
+	int getNbOutputs() const NOEXCEPT override {
 		return 1;
 	}
 
-	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) override {
+	Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) NOEXCEPT override {
 		return inputs[0];
 	}
 
-	void configure(const Dims* inputDims, int nbInputs, const Dims* outputDims, int nbOutputs, int maxBatchSize) override {
-		size = 1;
-		for(int i=0; i<outputDims[0].nbDims; i++)
-			size *= outputDims[0].d[i];
-	}
 
-	int initialize() override {
+	int initialize() NOEXCEPT override {
 
 		return 0;
 	}
 
-	virtual void terminate() override {
+	virtual void terminate() NOEXCEPT override {
 	}
 
-	virtual size_t getWorkspaceSize(int maxBatchSize) const override {
+	virtual size_t getWorkspaceSize(int maxBatchSize) const NOEXCEPT override {
 		return 0;
 	}
 
+	#if NV_TENSORRT_MAJOR >= 8
+	virtual int32_t enqueue(int32_t batchSize,void const*const* inputs,void*const* outputs,void* workspace,cudaStream_t stream) NOEXCEPT override{
+		activationSIGMOIDForward((dnnType*)reinterpret_cast<const dnnType*>(inputs[0]), 
+											reinterpret_cast<dnnType*>(outputs[0]), batchSize*size, stream);
+		return 0;
+	}
+	#else
 	virtual int enqueue(int batchSize, const void*const * inputs, void** outputs, void* workspace, cudaStream_t stream) override {
 
 		activationSIGMOIDForward((dnnType*)reinterpret_cast<const dnnType*>(inputs[0]), 
 											reinterpret_cast<dnnType*>(outputs[0]), batchSize*size, stream);
 		return 0;
 	}
+	#endif 
 
 
-	virtual size_t getSerializationSize() override {
+	virtual size_t getSerializationSize() const NOEXCEPT override {
 		return 1*sizeof(int);
 	}
 
-	virtual void serialize(void* buffer) override {
+	virtual void serialize(void* buffer) const NOEXCEPT override {
 		char *buf = reinterpret_cast<char*>(buffer),*a=buf;
 		tk::dnn::writeBUF(buf, size);
 		assert(buf == a + getSerializationSize());
